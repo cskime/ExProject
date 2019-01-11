@@ -2,58 +2,71 @@ import UIKit
 import Foundation
 
 var threshold = 3
-var ok = false
-var checkcount = 0
+var sec = 0
 var errorcount = 0
-var resetcount = 0
 var sign1 = "555250055545555557555525557555522345532235673665432" as NSString
 var sign2 = "555557555525"
 
-func getSignal(signal: NSString) -> Int {
+func getSignal(signal: NSString) -> Int? {
     let sign = Character(UnicodeScalar(signal.character(at: 0))!)
-    return Int(String(sign))!
+    return Int(String(sign))
 }
 
+
+enum State {
+    case CHECK_5SEC
+    case REST_2SEC
+    case OFF_10SEC
+}
+
+var state: State = .CHECK_5SEC
 while !(sign1 as String).isEmpty {
-    let sgn = getSignal(signal: sign1)
+    let sgn = getSignal(signal: sign1)!
     
-    if checkcount < 5 {
-        if sgn < threshold {
-            checkcount = 0
-            errorcount = 0
-            print("Signal \(sgn) : OK")
-        } else {
-            checkcount += 1
-            print("Signal \(sgn) : OVER - \(checkcount)")
-        }
-        sleep(1)
-        sign1 = sign1.substring(from: 1) as NSString
-    } else {
-        if errorcount == 0 {
-            //
-            
-            
-            resetcount += 1
-            print("Signal \(sgn) : RESET - \(resetcount)")
-            sleep(1)
-            
-            if resetcount == 2 {
-                checkcount = 0
-                resetcount = 0
-                errorcount += 1
+    if state == .CHECK_5SEC {             // 5초 카운트
+        if sec < 5 {
+            if sgn < threshold {
+                sec = 0
+                errorcount = 0
+                print("Signal \(sgn) : OK")
+            } else {
+                sec += 1
+                print("Signal \(sgn) : OVER - \(sec)")
             }
             sign1 = sign1.substring(from: 1) as NSString
+            sleep(1)
         } else {
-            for sec in 0..<10 {
-                print("Power Off... - \(sec)")
-                sleep(1)
-            }
+            state = (errorcount == 1) ? .OFF_10SEC : .REST_2SEC
+            sec = 0
+        }
+    } else if state == .REST_2SEC {      // 2초 휴식
+        if sec < 2 {
+            sec += 1
+            print("Signal \(sgn) : RESET - \(sec)")
+            sign1 = sign1.substring(from: 1) as NSString
+            sleep(1)
+        } else {
+            state = .CHECK_5SEC
+            sec = 0
+            errorcount += 1
+        }
+    } else if state == .OFF_10SEC {      // Power Off
+        if sec < 10 {
+            sec += 1
+            print("Power Off... - \(sec)")
+            sleep(1)
+        } else {
+            state = .CHECK_5SEC
+            sec = 0
             errorcount = 0
-            checkcount = 0
         }
     }
 }
 print("Signal End")
+
+
+
+
 
 //while   getSignal(signal: <#T##NSString#>)
 //    <#code#>if(state == 5sec_exam)   == checkcount <5 && errorciybt ==0
@@ -84,7 +97,8 @@ print("Signal End")
 //state ==errorr       errorcbt == 1 checkt ==5
 //   elseif
 //}
-//func checking(signal1: String) {
+
+//func checking(signal1: String){
 //    while true {
 //        // 5초 검사
 //        for sec in 0..<5 {
