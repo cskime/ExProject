@@ -1,6 +1,337 @@
 import UIKit
 import Foundation
 
+/* State pattern
+ * 1. 두 신호는 5초 검사 - 2초 대기 - 10초 검사 - shutdown system에서 검사
+ * 2. 신호 A가 5초동안 threshold 아래로 떨어지지 않으면 신호 B는 10초 검사구간 C에 돌입
+ * 3. 검사구간 C에서 threshold를 넘는 신호가 2회 연속 나타나면 A와 B 모두 shutdown
+ * 4. 신호 B의 경우 반대로 같은 동작
+ * 5. 검사중 한번이라도 threshold보다 낮은 신호가 들어오면 처음부터 재시작
+ * 6. 신호 A, B가 처음 5초동안 threshold 아래로 내려가지 못하면 둘다 검사구간 C에 돌입, 종료조건 같음
+ * 7. 일반 10초 검사구간 D에서 10초가 지나도록 threshold를 내려가지 못하면 둘다 shutdown
+ */
+
+/* States
+ * State A : Tx, Rx 모두 5초 검사
+ * State B : Tx는 2초 대기, Rx는 에러검사
+ * State C : Tx는 10초 검사, Rx는 에러검사
+ * State D : Tx는 에러검사, Rx는 2초 대기
+ * State E : Tx는 에러검사, Rx는 10초 검사
+ * State F : Tx, Rx 모두 에러검사
+ * State G : ShutDown
+ */
+var threshold = 3
+var txCount = 0
+var rxCount = 0
+var signal1 = "555250055545555557555525557555522345532235673665432" as NSString
+var signal2 = "533335005554555555755552555755549734875738673665432" as NSString
+var powerOn = true
+
+protocol State {
+    // functions
+    func inputSignal(tx: Int, rx: Int)
+}
+
+class StateA: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        if tx > threshold {
+            print("CheckTx : OVER - \(tx)")
+            txCount += 1
+        } else {
+            print("CheckTx: OK - \(tx)")
+            txCount = 0
+        }
+        
+        if rx > threshold {
+            print("CheckRx: OVER - \(rx)")
+            rxCount += 1
+        } else {
+            print("CheckRx: OK - \(rx)")
+            rxCount = 0
+        }
+        
+        if txCount == 5 && rxCount == 5{
+            checkSignals.setState(state: checkSignals.getStateF())
+            txCount = 0
+            rxCount = 0
+        } else if txCount == 5 {
+            checkSignals.setState(state: checkSignals.getStateB())
+            txCount = 0
+            rxCount = 0
+        } else if rxCount == 5 {
+            checkSignals.setState(state: checkSignals.getStateD())
+            txCount = 0
+            rxCount = 0
+        }
+    }
+}
+
+class StateB: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        if tx > threshold {
+            print("RestTx : OVER - \(tx)")
+            txCount += 1
+        } else {
+            print("RestTx: OK - \(tx)")
+            txCount = 0
+        }
+        
+        if rx > threshold {
+            print("ErrorRx: OVER - \(rx)")
+            rxCount += 1
+        } else {
+            print("ErrorRx: OK - \(rx)")
+            rxCount = 0
+        }
+        
+        if rxCount == 2 {
+            checkSignals.setState(state: checkSignals.getStateG())
+            txCount = 0
+            rxCount = 0
+        } else if txCount == 2 {
+            checkSignals.setState(state: checkSignals.getStateC())
+            txCount = 0
+            rxCount = 0
+        }
+    }
+}
+
+class StateC: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        if tx > threshold {
+            print("CheckTx : OVER - \(tx)")
+            txCount += 1
+        } else {
+            print("CheckTx: OK - \(tx)")
+            txCount = 0
+        }
+        
+        if rx > threshold {
+            print("ErrorRx: OVER - \(rx)")
+            rxCount += 1
+        } else {
+            print("ErrorRx: OK - \(rx)")
+            rxCount = 0
+        }
+        
+        if txCount == 10 || rxCount == 2 {
+            checkSignals.setState(state: checkSignals.getStateG())
+            txCount = 0
+            rxCount = 0
+        }
+    }
+}
+
+class StateD: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        if tx > threshold {
+            print("ErrorTx : OVER - \(tx)")
+            txCount += 1
+        } else {
+            print("ErrorTx: OK - \(tx)")
+            txCount = 0
+        }
+        
+        if rx > threshold {
+            print("RestRx: OVER - \(rx)")
+            rxCount += 1
+        } else {
+            print("RestRx: OK - \(rx)")
+            rxCount = 0
+        }
+        
+        if txCount == 2 {
+            checkSignals.setState(state: checkSignals.getStateG())
+            txCount = 0
+            rxCount = 0
+        } else if rxCount == 2 {
+            checkSignals.setState(state: checkSignals.getStateE())
+            txCount = 0
+            rxCount = 0
+        }
+    }
+}
+
+class StateE: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        if tx > threshold {
+            print("ErrorTx : OVER - \(tx)")
+            txCount += 1
+        } else {
+            print("ErrorTx: OK - \(tx)")
+            txCount = 0
+        }
+        
+        if rx > threshold {
+            print("CheckRx: OVER - \(rx)")
+            rxCount += 1
+        } else {
+            print("CheckRx: OK - \(rx)")
+            rxCount = 0
+        }
+        
+        if txCount == 2 || rxCount == 10 {
+            checkSignals.setState(state: checkSignals.getStateG())
+            txCount = 0
+            rxCount = 0
+        }
+    }
+}
+
+class StateF: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        if tx > threshold {
+            print("ErrorTx : OVER - \(tx)")
+            txCount += 1
+        } else {
+            print("ErrorRx: OK - \(tx)")
+            txCount = 0
+        }
+        
+        if rx > threshold {
+            print("ErrorRx: OVER - \(rx)")
+            rxCount += 1
+        } else {
+            print("ErrorRx: OK - \(rx)")
+            rxCount = 0
+        }
+        
+        if txCount == 2 || rxCount == 2 {
+            checkSignals.setState(state: checkSignals.getStateG())
+            txCount = 0
+        }
+    }
+}
+
+class StateG: State {
+    var checkSignals: CheckSignals
+    
+    init(checkSignals: CheckSignals) {
+        self.checkSignals = checkSignals
+    }
+    
+    func inputSignal(tx: Int, rx: Int) {
+        print("SHUT DOWN")
+        powerOn = false
+    }
+}
+
+class CheckSignals {
+    var stateA: State!
+    var stateB: State!
+    var stateC: State!
+    var stateD: State!
+    var stateE: State!
+    var stateF: State!
+    var stateG: State!
+    
+    var currentState: State!
+    
+    init() {
+        stateA = StateA(checkSignals: self)
+        stateB = StateB(checkSignals: self)
+        stateC = StateC(checkSignals: self)
+        stateD = StateD(checkSignals: self)
+        stateE = StateE(checkSignals: self)
+        stateF = StateF(checkSignals: self)
+        stateG = StateG(checkSignals: self)
+        currentState = stateA
+    }
+    
+    func insertSignal(tx: Int, rx: Int) {
+        currentState.inputSignal(tx: tx, rx: rx)
+    }
+    
+    func Do() {
+        // Main 동작
+        while !(signal1 as String).isEmpty || !(signal2 as String).isEmpty {
+            let tx = Int(String(Character(UnicodeScalar(signal1.character(at: 0))!)))!
+            let rx = Int(String(Character(UnicodeScalar(signal2.character(at: 0))!)))!
+            currentState.inputSignal(tx: tx, rx: rx)
+            if !powerOn {
+                break
+            }
+            signal1 = signal1.substring(from: 1) as NSString
+            signal2 = signal2.substring(from: 1) as NSString
+            sleep(1)
+        }
+        print("Check End")
+    }
+    
+    // MARK:- methods
+    func setState(state: State) {
+        currentState = state
+    }
+    
+    func getStateA() -> State {
+        return stateA!
+    }
+    
+    func getStateB() -> State {
+        return stateB!
+    }
+    
+    func getStateC() -> State {
+        return stateC!
+    }
+    
+    func getStateD() -> State {
+        return stateD!
+    }
+    
+    func getStateE() -> State {
+        return stateE!
+    }
+    
+    func getStateF() -> State {
+        return stateF!
+    }
+    
+    func getStateG() -> State {
+        return stateG!
+    }
+}
+
+let checkMachine = CheckSignals()
+checkMachine.Do()
+
+
 /* Non State Pattern */
 //func getSignal(signal: NSString) -> Int? {
 //    let sign = Character(UnicodeScalar(signal.character(at: 0))!)
@@ -156,152 +487,3 @@ import Foundation
 //    print("")
 //}
 //print("Signal End")
-
-
-/* State pattern */
-//var threshold = 3
-//var count = 0
-//var signal1 = "555250055545555557555525557555522345532235673665432" as NSString
-//var signal2 = "533335005554555555755552555755549734875738673665432" as NSString
-//protocol State {
-//    // functions
-//    func inputSignal(sgn: Int)
-//}
-//
-//class CheckFirst: State {
-//    var checkSignals: CheckSignals
-//
-//    init(checkSignals: CheckSignals) {
-//        self.checkSignals = checkSignals
-//    }
-//
-//    func inputSignal(sgn: Int) {
-//        if sgn > threshold {
-//            print("Check1 : OVER - \(sgn)")
-//            count += 1
-//        } else {
-//            print("Check1: OK - \(sgn)")
-//            count = 0
-//        }
-//
-//        if count == 5 {
-//            checkSignals.setState(state: checkSignals.getRestState())
-//            count = 0
-//        }
-//    }
-//}
-//
-//class Rest: State {
-//    var checkSignals: CheckSignals
-//
-//    init(checkSignals: CheckSignals) {
-//        self.checkSignals = checkSignals
-//    }
-//
-//    func inputSignal(sgn: Int) {
-//        print("Rest : \(sgn)")
-//        count += 1
-//
-//        if count == 2 {
-//            checkSignals.setState(state: checkSignals.getCheckSecondState())
-//            count = 0
-//        }
-//    }
-//}
-//
-//class CheckSecond: State {
-//    var checkSignals: CheckSignals
-//
-//    init(checkSignals: CheckSignals) {
-//        self.checkSignals = checkSignals
-//    }
-//
-//    func inputSignal(sgn: Int) {
-//        if sgn > threshold {
-//            print("Check2 : OVER - \(sgn)")
-//            count += 1
-//        } else {
-//            print("Check2: OK - \(sgn)")
-//            checkSignals.setState(state: checkSignals.getCheckFirstState())
-//            count = 0
-//        }
-//
-//        if count == 5 {
-//            checkSignals.setState(state: checkSignals.getResetState())
-//            count = 0
-//        }
-//    }
-//}
-//
-//class Reset: State {
-//    var checkSignals: CheckSignals
-//
-//    init(checkSignals: CheckSignals) {
-//        self.checkSignals = checkSignals
-//    }
-//
-//    func inputSignal(sgn: Int) {
-//        print("Reset")
-//        count += 1
-//
-//        if count == 10 {
-//            checkSignals.setState(state: checkSignals.getCheckFirstState())
-//        }
-//    }
-//}
-//
-//class CheckSignals {
-//    var checkFirstState: State!
-//    var restState: State!
-//    var checkSecondState: State!
-//    var resetState: State!
-//
-//    var currentState: State!
-//
-//    init() {
-//        checkFirstState = CheckFirst(checkSignals: self)
-//        restState = Rest(checkSignals: self)
-//        checkSecondState = CheckSecond(checkSignals: self)
-//        resetState = Reset(checkSignals: self)
-//        currentState = checkFirstState
-//    }
-//
-//    func insertSignal(sgn: Int) {
-//        currentState.inputSignal(sgn: sgn)
-//    }
-//
-//    func Do() {
-//        // Main 동작
-//        while !(signals as String).isEmpty {
-//            let sgn = Int(String(Character(UnicodeScalar(signals.character(at: 0))!)))!
-//            currentState.inputSignal(sgn: sgn)
-//            signals = signals.substring(from: 1) as NSString
-//            sleep(1)
-//        }
-//        print("Check End")
-//    }
-//
-//    // MARK:- methods
-//    func setState(state: State) {
-//        currentState = state
-//    }
-//
-//    func getCheckFirstState() -> State {
-//        return checkFirstState!
-//    }
-//
-//    func getRestState() -> State {
-//        return restState!
-//    }
-//
-//    func getCheckSecondState() -> State {
-//        return checkSecondState!
-//    }
-//
-//    func getResetState() -> State {
-//        return resetState!
-//    }
-//}
-//
-//let checkMachine = CheckSignals()
-//checkMachine.Do()
